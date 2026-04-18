@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# (c) J~Net 2026
+# jnetai.com
+#
+# user-delete - find linux user, show info, optionally delete user + home folder
+#
+# gedit command to edit this script:
+# gedit ./delete-user
+#
+
+set -e
+
+# bright green
+g="\033[1;92m"
+r="\033[0m"
+
+current_user="$USER"
+
+echo -e "${g}"
+echo "User Delete Program (c) J~Net 2026"
+echo ""
+echo "Listing all Current Users:"
+getent passwd \
+| cut -d: -f1 \
+| grep -v -E "^(root|$current_user)$" \
+| sort -u || true
+echo ""
+echo -e "${r}"
+
+# input
+if [ -z "$1" ];then
+    echo -en "${g}"
+    read -r -p "Enter username to search: " search_user || true
+    echo -en "${r}"
+else
+    search_user=$1
+fi
+
+echo -e "${g}Searching for user: $search_user"
+echo "--------------------------------${r}"
+
+# use array instead (fixes read issues completely)
+mapfile -t matched_users < <(getent passwd | grep -i "$search_user" || true)
+
+if [ "${#matched_users[@]}" -eq 0 ];then
+    echo -e "${g}No matching users found.${r}"
+    exit 0
+fi
+
+for line in "${matched_users[@]}";do
+
+    IFS=: read -r username x uid gid gecos home shell <<< "$line"
+
+    echo -e "${g}"
+    echo "User found: $username"
+    echo "UID: $uid"
+    echo "GID: $gid"
+    echo "Home: $home"
+    echo "Shell: $shell"
+    echo "GECOS: $gecos"
+
+    echo ""
+    echo "Groups:"
+    groups "$username" 2>/dev/null || true
+    echo ""
+
+    delete_path=""
+
+    # SAFE HOME CHECK (must match /home/username exactly)
+    if [ -d "$home" ] && [[ "$home" == "/home/$username" ]];then
+        echo "Home folder exists: YES"
+        du -sh "$home" 2>/dev/null || true
+        delete_path="$home"
+    else
+        echo "No safe home folder to delete"
+    fi
+
+    echo ""
+
+    echo "This will delete:"
+    echo "User: $username"
+    if [ -n "$delete_path" ];then
+        echo "Folder: $delete_path"
+    else
+        echo "Folder: (none)"
+    fi
+
+    echo ""
+
+    read -r -p "Type YES to confirm deletion: " confirm_user || true
+    if [ "$confirm_user" != "YES" ];then
+        echo "Skipping $username"
+        echo -e "${r}"
+        continue
+    fi
+
+    echo ""
+    echo "FINAL WARNING: irreversible action"
+    read -r -p "Type DELETE to proceed: " final_confirm || true
+
+    if [ "$final_confirm" != "DELETE" ];then
+        echo "Aborted $username"
+        echo -e "${r}"
+        continue
+    fi
+
+    echo "Deleting user..."
+
+    id "$username" &>/dev/null && sudo userdel "$username" || true
+
+    # SAFE DELETE ONLY
+    if [ -n "$delete_path" ];then
+        sudo rm -rf "$delete_path"
+    fi
+
+    echo "Done: $username"
+    echo -e "${r}"
+
+done
+
+echo -e "${g}"
+echo ""
+echo "Operation Complete!"
+echo -e "${r}"
