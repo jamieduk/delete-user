@@ -3,6 +3,7 @@
 **(c) J~Net 2026**
 Simple, safe Linux user search and deletion tool with optional home directory removal.
 
+https://github.com/jamieduk/delete-user
 ---
 
 ## Overview
